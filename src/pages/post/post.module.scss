@@ -48,6 +48,11 @@
   article {
     margin-top: 4rem;
 
+    .loading {
+      color: var(--body);
+      font-size: 1.2rem;
+    }
+
     section {
       & + section {
         margin-top: 2.25rem;
