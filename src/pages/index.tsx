@@ -1,9 +1,12 @@
 import { GetStaticProps } from 'next';
 import Head from 'next/head';
+import Link from 'next/link';
 import { FiCalendar, FiUser } from 'react-icons/fi';
 import Prismic from '@prismicio/client';
 
 import { useState } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { getPrismicClient } from '../services/prismic';
 
 import commonStyles from '../styles/common.module.scss';
@@ -35,15 +38,19 @@ export default function Home({ postsPagination }: HomeProps): JSX.Element {
   async function loadPosts(): Promise<void> {
     if (!nextPage) return;
 
-    const data = await fetch(postsPagination.next_page).then(response =>
-      response.json()
-    );
+    const data = await fetch(nextPage).then(response => response.json());
 
     setNextPage(data.next_page);
 
     const newPosts = data.results.map(post => ({
       uid: post.uid,
-      first_publication_date: post.first_publication_date,
+      first_publication_date: format(
+        new Date(post.first_publication_date),
+        'dd MMM yyyy',
+        {
+          locale: ptBR,
+        }
+      ),
       data: {
         title: post.data.title,
         subtitle: post.data.subtitle,
@@ -51,19 +58,7 @@ export default function Home({ postsPagination }: HomeProps): JSX.Element {
       },
     }));
 
-    const updatedPosts = [...posts, ...newPosts];
-
-    setPosts(
-      updatedPosts.filter((item, index) => {
-        const foundIndex = updatedPosts.findIndex(
-          elem => elem.uid === item.uid
-        );
-
-        console.log(index, foundIndex);
-
-        return foundIndex === index;
-      })
-    );
+    setPosts([...posts, ...newPosts]);
   }
 
   return (
@@ -73,29 +68,41 @@ export default function Home({ postsPagination }: HomeProps): JSX.Element {
       </Head>
 
       <main className={styles.contentContainer}>
+        <img src="/logo.svg" alt="logo" />
+
         <div className={styles.posts}>
           {posts.map(post => (
-            <a key={post.uid}>
-              <h1>{post.data.title}</h1>
-              <p>{post.data.subtitle}</p>
+            <Link key={post.uid} href={`/post/${post.uid}`}>
+              <a>
+                <h1>{post.data.title}</h1>
+                <p>{post.data.subtitle}</p>
 
-              <section>
-                <time>
-                  <FiCalendar size={20} />
-                  <span>{post.first_publication_date}</span>
-                </time>
+                <section>
+                  <time>
+                    <FiCalendar size={20} />
+                    {format(
+                      new Date(post.first_publication_date),
+                      'dd MMM yyyy',
+                      {
+                        locale: ptBR,
+                      }
+                    )}
+                  </time>
 
-                <div>
-                  <FiUser size={20} />
-                  <span>{post.data.author}</span>
-                </div>
-              </section>
-            </a>
+                  <div>
+                    <FiUser size={20} />
+                    <span>{post.data.author}</span>
+                  </div>
+                </section>
+              </a>
+            </Link>
           ))}
 
-          <button type="button" onClick={loadPosts}>
-            Carregar mais posts
-          </button>
+          {nextPage && (
+            <button type="button" onClick={loadPosts}>
+              Carregar mais posts
+            </button>
+          )}
         </div>
       </main>
     </>
@@ -113,13 +120,19 @@ export const getStaticProps: GetStaticProps = async () => {
     }
   );
 
-  console.log(postsResponse.next_page);
-
   return {
     props: {
       postsPagination: {
         next_page: postsResponse.next_page,
-        results: postsResponse.results,
+        results: postsResponse.results.map(post => ({
+          uid: post.uid,
+          first_publication_date: post.first_publication_date,
+          data: {
+            title: post.data.title,
+            subtitle: post.data.subtitle,
+            author: post.data.author,
+          },
+        })),
       },
     },
     revalidate: 60 * 1,

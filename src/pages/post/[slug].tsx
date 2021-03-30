@@ -1,14 +1,17 @@
 import { GetStaticPaths, GetStaticProps } from 'next';
 import { RichText } from 'prismic-dom';
 import { format } from 'date-fns';
-import ptBR from 'date-fns/locale/pt-BR';
-
 import { FiCalendar, FiUser, FiClock } from 'react-icons/fi';
+import ptBR from 'date-fns/locale/pt-BR';
+import Head from 'next/head';
 
 import { getPrismicClient } from '../../services/prismic';
 
 import commonStyles from '../../styles/common.module.scss';
+
 import styles from './post.module.scss';
+
+import Header from '../../components/Header';
 
 interface PostContent {
   heading: string;
@@ -34,6 +37,12 @@ interface PostProps {
 export default function Post({ post }: PostProps): JSX.Element {
   return (
     <>
+      <Head>
+        <title>{post.data.title} | spacetravelling</title>
+      </Head>
+
+      <Header />
+
       <img
         className={styles.banner}
         src="https://images.prismic.io/ledoctah-spacetravelling/8ec765e9-ca4d-46d3-92c9-71615feba9c1_Banner.png?auto=compress,formatIma"
@@ -62,12 +71,10 @@ export default function Post({ post }: PostProps): JSX.Element {
 
           <article>
             {post.data.content.map(section => (
-              <>
-                <section>
-                  <h2>{section.heading}</h2>
-                  <div dangerouslySetInnerHTML={{ __html: section.body }} />
-                </section>
-              </>
+              <section key={section.heading}>
+                <h2>{section.heading}</h2>
+                <div dangerouslySetInnerHTML={{ __html: section.body }} />
+              </section>
             ))}
           </article>
         </header>
@@ -107,6 +114,12 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
       body: RichText.asHtml(group.body),
     };
   });
+
+  const totalWords = response.data.content
+    .map(item => RichText.asHtml(item.body))
+    .reduce((acc, value) => {
+      return acc + value.length;
+    }, 0);
 
   const post: Post = {
     first_publication_date: format(
