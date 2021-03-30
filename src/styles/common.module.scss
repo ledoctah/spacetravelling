@@ -1,1 +1,24 @@
-// TODO
+.exitPreview {
+  margin: 5.5rem 0;
+
+  > a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+
+    background-color: var(--heading);
+    color: var(--background);
+
+    font-size: 1.125rem;
+    font-weight: 600;
+
+    height: 3.625rem;
+    border-radius: 4px;
+
+    &:hover {
+      filter: brightness(.9);
+    }
+  }
+}

@@ -10,6 +10,7 @@ import Link from 'next/link';
 
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+import { Document } from '@prismicio/client/types/documents';
 import { getPrismicClient } from '../../services/prismic';
 
 import commonStyles from '../../styles/common.module.scss';
@@ -17,10 +18,15 @@ import commonStyles from '../../styles/common.module.scss';
 import styles from './post.module.scss';
 
 import Header from '../../components/Header';
+import CommentsSection from '../../components/CommentsSection';
 
 interface PostContent {
   heading: string;
   body: string;
+}
+
+interface PreviewData {
+  ref: string;
 }
 
 interface Post {
@@ -47,12 +53,14 @@ interface PostProps {
   post: Post;
   nextPost: NavigationProps;
   previousPost: NavigationProps;
+  preview?: boolean;
 }
 
 export default function Post({
   post,
   nextPost,
   previousPost,
+  preview = false,
 }: PostProps): JSX.Element {
   const router = useRouter();
 
@@ -156,8 +164,16 @@ export default function Post({
           </div>
 
           <div>
-            <h1>comments</h1>
+            <CommentsSection />
           </div>
+
+          {preview && (
+            <aside className={commonStyles.exitPreview}>
+              <Link href="/api/exit-preview">
+                <a>Sair do modo Preview</a>
+              </Link>
+            </aside>
+          )}
         </footer>
       </div>
     </>
@@ -182,11 +198,26 @@ export const getStaticPaths: GetStaticPaths = async () => {
   };
 };
 
-export const getStaticProps: GetStaticProps = async ({ params }) => {
+export const getStaticProps: GetStaticProps = async ({
+  params,
+  preview = false,
+  previewData,
+}) => {
   const { slug } = params;
 
+  const ref = previewData?.ref;
+
+  let response: Document;
+
   const prismic = getPrismicClient();
-  const response = await prismic.getByUID('post', String(slug), {});
+
+  if (ref) {
+    response = await prismic.getSingle('post', {
+      ref,
+    });
+  } else {
+    response = await prismic.getByUID('post', String(slug), {});
+  }
 
   if (!response) {
     return {
@@ -219,26 +250,28 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
     },
   };
 
-  const nextPost = await prismic.query(
-    Prismic.Predicates.dateAfter(
-      'document.first_publication_date',
-      response.first_publication_date
-    ),
-    {
-      pageSize: 1,
-      orderings: '[document.first_publication_date]',
-    }
-  );
+  const nextPost = response.first_publication_date
+    ? await prismic.query(
+        Prismic.Predicates.dateAfter(
+          'document.first_publication_date',
+          response.first_publication_date
+        ),
+        {
+          pageSize: 1,
+          orderings: '[document.first_publication_date]',
+        }
+      )
+    : { results: [] };
 
-  const previousPost = await prismic.query(
-    Prismic.Predicates.dateBefore(
-      'document.first_publication_date',
-      response.first_publication_date
-    ),
-    { pageSize: 1, orderings: '[document.first_publication_date desc]' }
-  );
-
-  console.log(previousPost);
+  const previousPost = response.first_publication_date
+    ? await prismic.query(
+        Prismic.Predicates.dateBefore(
+          'document.first_publication_date',
+          response.first_publication_date
+        ),
+        { pageSize: 1, orderings: '[document.first_publication_date desc]' }
+      )
+    : { results: [] };
 
   return {
     props: {
@@ -255,6 +288,7 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
             title: previousPost.results[0].data.title,
           }
         : null,
+      preview,
     },
     revalidate: 60 * 60 * 1, // 1 HOUR
   };
