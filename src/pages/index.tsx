@@ -117,6 +117,7 @@ export const getStaticProps: GetStaticProps = async () => {
       fetch: ['uid', 'title', 'subtitle', 'author'],
       page: 1,
       pageSize: 2,
+      orderings: '[document.first_publication_date]',
     }
   );
 

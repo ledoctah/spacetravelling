@@ -6,6 +6,7 @@ import { FiCalendar, FiUser, FiClock } from 'react-icons/fi';
 import Prismic from '@prismicio/client';
 import ptBR from 'date-fns/locale/pt-BR';
 import Head from 'next/head';
+import Link from 'next/link';
 
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
@@ -24,6 +25,7 @@ interface PostContent {
 
 interface Post {
   first_publication_date: string | null;
+  last_publication_date: string | null;
   uid: string;
   data: {
     title: string;
@@ -36,11 +38,22 @@ interface Post {
   };
 }
 
-interface PostProps {
-  post: Post;
+interface NavigationProps {
+  slug: string;
+  title: string;
 }
 
-export default function Post({ post }: PostProps): JSX.Element {
+interface PostProps {
+  post: Post;
+  nextPost: NavigationProps;
+  previousPost: NavigationProps;
+}
+
+export default function Post({
+  post,
+  nextPost,
+  previousPost,
+}: PostProps): JSX.Element {
   const router = useRouter();
 
   const totalWords = post.data.content.reduce((acc, curr) => {
@@ -89,23 +102,63 @@ export default function Post({ post }: PostProps): JSX.Element {
             </span>
           </div>
 
-          <article>
-            {router.isFallback ? (
-              <div className={styles.loading}>Carregando...</div>
-            ) : (
-              post.data.content.map(section => (
-                <section key={section.heading}>
-                  <h2>{section.heading}</h2>
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: RichText.asHtml(section.body),
-                    }}
-                  />
-                </section>
-              ))
+          <span>
+            {format(
+              new Date(post.first_publication_date),
+              "'* editado em ' dd MMM yyyy', às ' HH:mm",
+              {
+                locale: ptBR,
+              }
             )}
-          </article>
+          </span>
         </header>
+
+        <article>
+          {router.isFallback ? (
+            <div className={styles.loading}>Carregando...</div>
+          ) : (
+            post.data.content.map(section => (
+              <section key={section.heading}>
+                <h2>{section.heading}</h2>
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: RichText.asHtml(section.body),
+                  }}
+                />
+              </section>
+            ))
+          )}
+        </article>
+
+        <footer>
+          <div className={styles.postNavigation}>
+            <div>
+              {previousPost && (
+                <>
+                  <h2>{previousPost.title}</h2>
+                  <Link href={`/post/${previousPost.slug}`}>
+                    <a>Post anterior</a>
+                  </Link>
+                </>
+              )}
+            </div>
+
+            <div>
+              {nextPost && (
+                <>
+                  <h2>{nextPost.title}</h2>
+                  <Link href={`/post/${nextPost.slug}`}>
+                    <a>Próximo post</a>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h1>comments</h1>
+          </div>
+        </footer>
       </div>
     </>
   );
@@ -114,8 +167,7 @@ export default function Post({ post }: PostProps): JSX.Element {
 export const getStaticPaths: GetStaticPaths = async () => {
   const prismic = getPrismicClient();
   const posts = await prismic.query(
-    Prismic.Predicates.at('document.type', 'post'),
-    { page: 1, pageSize: 2 }
+    Prismic.Predicates.at('document.type', 'post')
   );
 
   const paths = posts.results.map(post => ({
@@ -154,6 +206,7 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
 
   const post: Post = {
     first_publication_date: response.first_publication_date,
+    last_publication_date: response.last_publication_date,
     uid: response.uid,
     data: {
       title: response.data.title,
@@ -166,9 +219,42 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
     },
   };
 
+  const nextPost = await prismic.query(
+    Prismic.Predicates.dateAfter(
+      'document.first_publication_date',
+      response.first_publication_date
+    ),
+    {
+      pageSize: 1,
+      orderings: '[document.first_publication_date]',
+    }
+  );
+
+  const previousPost = await prismic.query(
+    Prismic.Predicates.dateBefore(
+      'document.first_publication_date',
+      response.first_publication_date
+    ),
+    { pageSize: 1, orderings: '[document.first_publication_date desc]' }
+  );
+
+  console.log(previousPost);
+
   return {
     props: {
       post,
+      nextPost: nextPost.results[0]
+        ? {
+            slug: nextPost.results[0].uid,
+            title: nextPost.results[0].data.title,
+          }
+        : null,
+      previousPost: previousPost.results[0]
+        ? {
+            slug: previousPost.results[0].uid,
+            title: previousPost.results[0].data.title,
+          }
+        : null,
     },
     revalidate: 60 * 60 * 1, // 1 HOUR
   };
